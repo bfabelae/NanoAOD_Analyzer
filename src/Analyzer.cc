@@ -2077,7 +2077,7 @@ void Analyzer::applyJetEnergyCorrections(Particle& jet, const CUTS eGenPos, cons
   std::string systname = syst_names.at(syst);
   // std::cout << "Systematic name = " << systname << std::endl;
   // Define the deltas to be applied to MET at the end:
-  float delta_x_T1Jet = 0.0, delta_y_T1Jet = 0.0, delta_x_rawJet = 0.0, delta_y_rawJet = 0.0;
+  float delta_x_EEnoise_T1Jets = 0.0, delta_y_EEnoise_T1Jets = 0.0, delta_x_EEnoise_rawJets = 0.0, delta_y_EEnoise_rawJets = 0.0;
   // Define the jet energy threshold below which we consider it to be unclustered energy.
   float jetUnclEnThreshold = 15.0;
 
@@ -2266,20 +2266,6 @@ void Analyzer::applyJetEnergyCorrections(Particle& jet, const CUTS eGenPos, cons
     //std::cout << "Jet shifted JER L1L2L3 (total): pt = " << jetL1L2L3_jerShiftedP4.Pt() << ", eta = " << jetL1L2L3_jerShiftedP4.Eta() << ", phi = " << jetL1L2L3_jerShiftedP4.Phi() << ", mass = " << jetL1L2L3_jerShiftedP4.M() << std::endl;
     //std::cout << "Jet nominal L1 (total): pt = " << jetL1_P4.Pt() << ", eta = " << jetL1_P4.Eta() << ", phi = " << jetL1_P4.Phi() << ", mass = " << jetL1_P4.M() << std::endl;
 
-    if(year.compare("2017") == 0){
-
-      if(jetL1L2L3_jerNomP4.Pt() > jetUnclEnThreshold && (abs(origJetReco.Eta()) > 2.65 && abs(origJetReco.Eta()) < 3.14 ) && rawJetP4.Pt() < 50.0){ // rawJetP4 includes clustered and unclustered energy.
-        // Get the delta for removing L1L2L3-L1 corrected jets in the EE region from the default MET branch
-        // Take into account if the jets are smeared in resolution, multiplying by jer_sf_nom
-        delta_x_T1Jet += (jetL1L2L3_jerNomP4.Pt() - jetL1_P4.Pt()) * cos(origJetReco.Phi()) + rawJetP4.Pt() * cos(origJetReco.Phi());
-        delta_y_T1Jet += (jetL1L2L3_jerNomP4.Pt() - jetL1_P4.Pt()) * sin(origJetReco.Phi()) + rawJetP4.Pt() * sin(origJetReco.Phi());
-
-        // get the delta for removing raw jets in the EE region from the raw MET
-        delta_x_rawJet += rawJetP4.Pt() * cos(origJetReco.Phi());
-        delta_y_rawJet += rawJetP4.Pt() * sin(origJetReco.Phi());
-      }
-    }
-
     // Evaluate JES uncertainties. This must be done on top of the nominal JECs and JERs (if any), not considering the muon momenta.
     TLorentzVector jetL1L2L3_jer_noMuon_jesShiftedP4(0,0,0,0), jetL1L2L3_T1_noMuon_jesShiftedP4(0,0,0,0);
     double jes_delta = 0.0, jes_delta_t1 = 0.0;
@@ -2363,9 +2349,9 @@ void Analyzer::applyJetEnergyCorrections(Particle& jet, const CUTS eGenPos, cons
     // Only propagate JECs to MET if the corrected pt without the muon is above the unclustered energy threshold.
     //if(i == 0) std::cout << "Original raw MET vector: pt = " << _MET->pt() << ", eta = " << _MET->eta() << ", phi = " << _MET->phi() << ", energy = " << _MET->energy() << std::endl;
 
-    if(jetL1L2L3_noMuonP4.Pt() > jetUnclEnThreshold && jetTotalEmEF < 0.9){
+    if(!(year.compare("2017") == 0 && (abs(rawJetP4_noMuon.Eta()) > 2.65 && abs(rawJetP4_noMuon.Eta()) < 3.14 ) && rawJetP4_noMuon.Pt() < 50.0)){
 
-      if(!(year.compare("2017") == 0 && (abs(rawJetP4_noMuon.Eta()) > 2.65 && abs(rawJetP4_noMuon.Eta()) < 3.14 ) && rawJetP4_noMuon.Pt() < 50.0)){
+      if(jetL1L2L3_noMuonP4.Pt() > jetUnclEnThreshold && jetTotalEmEF < 0.9){
 
         if(isData){
           _MET->propagateJetEnergyCorr(jetL1L2L3_jerNom_noMuonP4, jetL1L2L3_jerNom_noMuonP4.Pt(), rawJetP4_noMuon.Pt(), systname, syst); // here the jer sf is 1, therefore we just keep the original vector.
@@ -2389,12 +2375,27 @@ void Analyzer::applyJetEnergyCorrections(Particle& jet, const CUTS eGenPos, cons
       }
     }
 
+    if(year.compare("2017") == 0 && ( abs(rawJetP4_noMuon.Eta()) > 2.65 && abs(rawJetP4_noMuon.Eta()) < 3.14 ) && rawJetP4_noMuon.Pt() < 50.0){ // rawJetP4 includes clustered and unclustered energy.
+
+      if(jetL1L2L3_jerNomP4.Pt() > jetUnclEnThreshold && jetTotalEmEF < 0.9){
+
+        // get the delta for removing raw jets in the EE region from the raw MET
+        delta_x_EEnoise_rawJets += rawJetP4_noMuon.Pt() * cos(rawJetP4_noMuon.Phi());
+        delta_y_EEnoise_rawJets += rawJetP4_noMuon.Pt() * sin(rawJetP4_noMuon.Phi());
+
+        // Get the delta for removing L1L2L3-L1 corrected jets in the EE region from the default MET branch
+        // Take into account if the jets are smeared in resolution, multiplying by jer_sf_nom
+        delta_x_EEnoise_T1Jets += (jetL1L2L3_jerNomP4.Pt() - jetL1_P4.Pt()) * cos(jetL1L2L3_jerNomP4.Phi()) + delta_x_EEnoise_rawJets;
+        delta_y_EEnoise_T1Jets += (jetL1L2L3_jerNomP4.Pt() - jetL1_P4.Pt()) * sin(jetL1L2L3_jerNomP4.Phi()) + delta_y_EEnoise_rawJets;
+      }
+    }
+
   }
 
   // Propagate "unclustered energy" uncertainty to MET to finalize the 2017 MET recipe v2
   if(year.compare("2017") == 0){
     // Remove the L1L2L3-L1 corrected jets in the EE region from the default MET branch
-    _MET->propagateUnclEnergyUnctyEE(delta_x_T1Jet, delta_y_T1Jet, delta_x_rawJet, delta_y_rawJet, systname, syst);
+    _MET->propagateUnclEnergyUnctyEE(delta_x_EEnoise_T1Jets, delta_y_EEnoise_T1Jets, delta_x_EEnoise_rawJets, delta_y_EEnoise_rawJets, systname, syst);
   }
 
 }
